@@ -56,10 +56,8 @@ jobs:
           path: dist
       - name: Publish
         env:
-          # Empty once trusted publishing is set up: npm then uses the job's
-          # OIDC token. NPM_TOKEN is only for the very first publish, when the
-          # packages do not exist yet (see CONTRIBUTING.md).
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # No token: npm trusted publishing exchanges the job's OIDC token
+          # (id-token: write) for a short-lived publish token.
           DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
         run: |
           npm --version
