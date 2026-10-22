@@ -26,26 +26,20 @@ The [Publish](.github/workflows/publish.yml) workflow runs daily and by hand (`v
 
 The newest LLVM major gets the dist-tag `latest`; older majors get `llvm-<major>`, so publishing an old version never changes what `npm install @cpp-linter/clang-tidy` installs. An npm version cannot be published twice: a rebuild of the same LLVM version in clang-tools-static-binaries (a new `-N` release) is not published again.
 
-### One-time setup
+### Trusted publishing
 
-npm trusted publishing can only be set up for packages that already exist, so the first run uses a short-lived token.
+The Publish workflow has no npm token. Every package trusts `publish.yml` in the `npm` environment ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers)), so npm swaps the job's OIDC token for a short-lived publish token and signs a provenance statement. The `npm` environment has a maintainer as required reviewer and allows only `main`.
 
-1. In this repository: Settings → Environments → New environment `npm`, with a maintainer as required reviewer and "main" as the only deployment branch.
-2. On npmjs.com (with 2FA on): Access Tokens → Generate New Token → Granular Access Token, permission "Read and write" for the `@cpp-linter` scope, "Bypass two-factor authentication" checked (CI cannot answer a 2FA prompt), expiring after 1 day. Add it to the `npm` environment as the secret `NPM_TOKEN`.
-3. Run the Publish workflow with versions `23`. This creates the 14 packages, with provenance.
-4. Set up trusted publishing for all of them (npm 11.15 or newer; one 2FA prompt, then choose to skip 2FA for 5 minutes):
+A package can only trust a workflow once it exists on npm. When a new tool gets packages, publish their first version once with a 1-day granular token that bypasses 2FA (a `NPM_TOKEN` secret in the `npm` environment, passed to the Publish step as `NODE_AUTH_TOKEN` for that run, as for the first release), then set up trust from a maintainer's machine (npm 11.15 or newer, logged in with `npm login --auth-type=web`; one 2FA prompt, then choose to skip 2FA for 5 minutes):
 
-   ```sh
-   for tool in clang-format clang-tidy; do
-     for pkg in "$tool" "$tool"-{linux,darwin,win32}-{x64,arm64}; do
-       npm trust github "@cpp-linter/$pkg" --repo cpp-linter/clang-tools-npm \
-         --file publish.yml --env npm --allow-publish --yes
-       sleep 2
-     done
-   done
-   ```
+```sh
+for tool in clang-format clang-tidy; do
+  for pkg in "$tool" "$tool"-{linux,darwin,win32}-{x64,arm64}; do
+    npm trust github "@cpp-linter/$pkg" --repo cpp-linter/clang-tools-npm \
+      --file publish.yml --env npm --allow-publish --yes
+    sleep 2
+  done
+done
+```
 
-5. Delete the `NPM_TOKEN` secret and revoke the token on npmjs.com.
-6. Run the Publish workflow with versions `all`. From now on it publishes with the workflow's OIDC token.
-
-When a new tool gets packages, its packages need steps 2–5 again.
+Then delete the token.
