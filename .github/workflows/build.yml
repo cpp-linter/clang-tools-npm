@@ -1,0 +1,100 @@
+name: Build and test
+
+# Packs the static binaries into npm packages and installs them on every
+# platform to check that they work. ci.yml runs it on pull requests and
+# publish.yml before publishing.
+
+on:
+  workflow_call:
+    inputs:
+      versions:
+        description: "LLVM majors, e.g. '23' or '12 23', 'latest' or 'all'"
+        type: string
+        default: latest
+      only-missing:
+        description: "Skip the versions that are already on npm"
+        type: boolean
+        default: false
+    outputs:
+      has-packages:
+        description: "'true' when something was packed"
+        value: ${{ jobs.pack.outputs.has-packages }}
+
+permissions: {}
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      has-packages: ${{ steps.build.outputs.has-packages }}
+      versions: ${{ steps.build.outputs.versions }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Pack the binaries
+        id: build
+        env:
+          # gh attestation verify reads the attestations of the static binaries.
+          GH_TOKEN: ${{ github.token }}
+          VERSIONS: ${{ inputs.versions }}
+          ONLY_MISSING: ${{ inputs.only-missing && '--only-missing' || '' }}
+        run: node scripts/build.mjs --versions "$VERSIONS" --verify-attestations $ONLY_MISSING
+      - name: Upload the packages
+        if: steps.build.outputs.has-packages == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-packages
+          path: |
+            dist/manifest.json
+            dist/tarballs/
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke-test:
+    needs: pack
+    if: needs.pack.outputs.has-packages == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJson(needs.pack.outputs.versions) }}
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-15-intel
+          - macos-15
+          - windows-latest
+          - windows-11-arm
+    name: LLVM ${{ matrix.version }} on ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-packages
+          path: dist
+      - name: Install with npm and run on test code
+        env:
+          VERSION: ${{ matrix.version }}
+        run: node test/smoke.mjs --dist dist --version "$VERSION"
+      - name: Install with pnpm and run on test code
+        if: matrix.runner == 'ubuntu-24.04'
+        env:
+          VERSION: ${{ matrix.version }}
+        run: |
+          npm install --global pnpm@10.28.0
+          node test/smoke.mjs --dist dist --version "$VERSION" --pm pnpm
