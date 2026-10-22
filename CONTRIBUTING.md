@@ -1,5 +1,7 @@
 # Contributing
 
+Thank you for investing your time in contributing to this project! The general guidelines of the cpp-linter organization are in [cpp-linter/.github](https://github.com/cpp-linter/.github/blob/main/CONTRIBUTING.md): pull requests target `main`, and their titles follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, ...), which the pre-commit workflow checks.
+
 ## Build and test locally
 
 Node.js 22 or newer and `tar` are needed.
@@ -17,6 +19,8 @@ node scripts/publish.mjs --dry-run          # what would be published
 A version is skipped by `--versions all` (and makes a named version fail) when its release has no `LICENSE.TXT`, or no clang resource headers for clang-tidy. Rebuild it in clang-tools-static-binaries first.
 
 ## Releases
+
+This repository has no version of its own: the npm version of every package is the LLVM version of the binary, like the per-version releases of clang-tools-static-binaries. So it does not use Release Drafter or tags. A new LLVM version is published when it appears in `index.json`.
 
 The [Publish](.github/workflows/publish.yml) workflow runs daily and by hand (`versions`, `dry-run`). It packs every LLVM version from `index.json` that is not on npm yet, runs the smoke tests on all 6 platforms, and then the `publish` job waits in the `npm` environment for a maintainer's approval.
 

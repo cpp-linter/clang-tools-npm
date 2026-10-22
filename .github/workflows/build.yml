@@ -1,7 +1,7 @@
 name: Build and test
 
 # Packs the static binaries into npm packages and installs them on every
-# platform to check that they work. ci.yml runs it on pull requests and
+# platform to check that they work. test.yml runs it on pull requests and
 # publish.yml before publishing.
 
 on:

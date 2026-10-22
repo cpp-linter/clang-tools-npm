@@ -1,6 +1,15 @@
 # clang-tools-npm
 
-npm packages of clang-format and clang-tidy, made from the static binaries of [cpp-linter/clang-tools-static-binaries](https://github.com/cpp-linter/clang-tools-static-binaries) (LLVM 12–23 on 6 platforms).
+[![clang-format on npm](https://img.shields.io/npm/v/@cpp-linter/clang-format?label=clang-format&labelColor=454a63&color=007ec6)](https://www.npmjs.com/package/@cpp-linter/clang-format)
+[![clang-tidy on npm](https://img.shields.io/npm/v/@cpp-linter/clang-tidy?label=clang-tidy&labelColor=454a63&color=007ec6)](https://www.npmjs.com/package/@cpp-linter/clang-tidy)
+[![ci](https://img.shields.io/github/actions/workflow/status/cpp-linter/clang-tools-npm/test.yml?branch=main&label=ci&labelColor=454a63)](https://github.com/cpp-linter/clang-tools-npm/actions/workflows/test.yml)
+[![part of cpp-linter](https://img.shields.io/badge/part%20of-cpp--linter-ffc20a?labelColor=454a63)](https://cpp-linter.github.io/)
+
+clang-format and clang-tidy as npm packages, made from the [static binaries](https://github.com/cpp-linter/clang-tools-static-binaries) for LLVM 12–23 on 6 platforms, so you can use them without installing LLVM.
+
+[Website](https://cpp-linter.github.io/) · [Get started](https://cpp-linter.github.io/getting-started/#just-the-clang-tools) · [Discussions](https://github.com/orgs/cpp-linter/discussions)
+
+## Quick start
 
 | Package | What it is |
 | --- | --- |

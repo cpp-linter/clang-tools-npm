@@ -1,5 +1,7 @@
 # {{NAME}}
 
+[![part of cpp-linter](https://img.shields.io/badge/part%20of-cpp--linter-ffc20a?labelColor=454a63)](https://cpp-linter.github.io/)
+
 [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) {{VERSION}} as a static binary, for Linux, macOS and Windows on x64 and arm64. It comes with clang's builtin headers (`stddef.h`, `stdarg.h` and the others), so it works without an LLVM install.
 
 ```sh
@@ -29,4 +31,4 @@ clangTidy.run(['--version']); // runs it and returns the exit code
 
 They are built from the LLVM source by [cpp-linter/clang-tools-static-binaries](https://github.com/cpp-linter/clang-tools-static-binaries), with a GitHub build attestation for every file. Before publishing, the [release workflow](https://github.com/cpp-linter/clang-tools-npm) checks each binary's sha512 and attestation, and the packages are published from GitHub Actions with npm provenance.
 
-Issues: https://github.com/cpp-linter/clang-tools-npm/issues
+[Website](https://cpp-linter.github.io/) · [Source](https://github.com/cpp-linter/clang-tools-npm) · [Issues](https://github.com/cpp-linter/clang-tools-npm/issues) · [Discussions](https://github.com/orgs/cpp-linter/discussions)
