@@ -1,0 +1,66 @@
+name: Publish
+
+# Publishes to npm every LLVM version in the static binaries' index.json that
+# is not on npm yet. Runs every day and by hand. The publish job uses the
+# "npm" environment, so it waits for a maintainer's approval.
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "LLVM majors to publish, e.g. '23' or '12 13', or 'all'"
+        default: all
+      dry-run:
+        description: "Run npm publish --dry-run"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+    with:
+      versions: ${{ inputs.versions || 'all' }}
+      only-missing: true
+
+  publish:
+    needs: build
+    if: needs.build.outputs.has-packages == 'true'
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      # npm trusted publishing and provenance.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: npm-packages
+          path: dist
+      - name: Publish
+        env:
+          # Empty once trusted publishing is set up: npm then uses the job's
+          # OIDC token. NPM_TOKEN is only for the very first publish, when the
+          # packages do not exist yet (see CONTRIBUTING.md).
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        run: |
+          npm --version
+          node scripts/publish.mjs --dist dist $DRY_RUN

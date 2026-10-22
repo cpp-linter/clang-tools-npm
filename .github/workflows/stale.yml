@@ -1,0 +1,13 @@
+name: 'Close stale issues'
+on:
+  schedule:
+    - cron: '30 1 * * *'
+permissions: {}
+
+jobs:
+  stale:
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    uses: cpp-linter/.github/.github/workflows/stale.yml@57768d850c8c0ff7f1595bbaaa1e2a280552e1d6 # main
