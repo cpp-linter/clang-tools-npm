@@ -6,11 +6,13 @@
 
 ```sh
 npm install --save-dev {{NAME}}@{{MAJOR}}
-npx clang-tidy -p build src/main.cpp          # with build/compile_commands.json
-npx clang-tidy src/main.cpp -- -std=c++17     # without a compilation database
+# with build/compile_commands.json
+npx clang-tidy -p build src/main.cpp
+# without a compilation database
+npx clang-tidy src/main.cpp -- -std=c++17
 ```
 
-The npm version is the LLVM version: `{{NAME}}@{{MAJOR}}` always installs the newest LLVM {{MAJOR}} release. Every major from LLVM 12 is published.
+The npm version is the LLVM version: `{{NAME}}@{{MAJOR}}` always installs the newest LLVM {{MAJOR}} release. Older LLVM majors are under the [Versions](https://www.npmjs.com/package/{{NAME}}?activeTab=versions) tab, such as `{{NAME}}@18`.
 
 clang-tidy also needs the headers of your C++ standard library (libstdc++, libc++ or the Windows SDK), which come with your compiler. For lint checks in pull requests, see [cpp-linter](https://github.com/cpp-linter).
 

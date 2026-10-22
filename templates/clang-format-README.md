@@ -7,10 +7,11 @@
 ```sh
 npm install --save-dev {{NAME}}@{{MAJOR}}
 npx clang-format -i src/*.cpp
-npx clang-format --dry-run --Werror src/*.cpp   # check only, for CI
+# check only, for CI
+npx clang-format --dry-run --Werror src/*.cpp
 ```
 
-The npm version is the LLVM version. clang-format output changes between LLVM major versions, so pin one: `{{NAME}}@{{MAJOR}}` always installs the newest LLVM {{MAJOR}} release. Every major from LLVM 12 is published.
+The npm version is the LLVM version. clang-format output changes between LLVM major versions, so pin one: `{{NAME}}@{{MAJOR}}` always installs the newest LLVM {{MAJOR}} release. Older LLVM majors are under the [Versions](https://www.npmjs.com/package/{{NAME}}?activeTab=versions) tab, such as `{{NAME}}@18`.
 
 ## How it is installed
 
