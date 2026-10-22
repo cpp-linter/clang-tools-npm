@@ -75,6 +75,10 @@ jobs:
           - windows-11-arm
     name: LLVM ${{ matrix.version }} on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        # Same shell on Windows, so "$VERSION" is the environment variable.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
