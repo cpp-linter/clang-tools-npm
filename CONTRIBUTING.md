@@ -10,7 +10,7 @@ Node.js 22 or newer and `tar` are needed.
 node scripts/build.mjs --versions 23        # or "12 23", "latest", "all"
 node test/smoke.mjs --version 23            # installs the packages for this machine and runs them
 node test/smoke.mjs --version 23 --pm pnpm
-npm test                                    # unit tests
+npm test                                    # unit tests; fails below 100% line coverage
 node scripts/publish.mjs --dry-run          # what would be published
 ```
 
