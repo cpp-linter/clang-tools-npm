@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "smoke": "node test/smoke.mjs",
-    "test": "node --test test/unit.test.mjs",
+    "test": "node --test --experimental-test-coverage --test-coverage-include='scripts/**' --test-coverage-include='templates/main/**' --test-coverage-lines=100 --test-coverage-functions=100 test/*.test.mjs",
     "publish-packages": "node scripts/publish.mjs"
   }
 }

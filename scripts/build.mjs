@@ -175,7 +175,7 @@ function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function fillTemplate(name, values) {
+export function fillTemplate(name, values) {
   let text = fs.readFileSync(path.join(TEMPLATES, name), 'utf8');
   for (const [key, value] of Object.entries(values)) {
     text = text.replaceAll(`{{${key}}}`, value);
@@ -273,8 +273,10 @@ function pack(dir, destination) {
   return path.join(destination, JSON.parse(out)[0].filename);
 }
 
-async function main() {
+/** Runs the command line; `args` are the arguments after `node scripts/build.mjs`. */
+export async function main(args = process.argv.slice(2)) {
   const { values } = parseArgs({
+    args,
     options: {
       versions: { type: 'string', default: 'latest' },
       tools: { type: 'string', default: Object.keys(TOOLS).join(',') },
