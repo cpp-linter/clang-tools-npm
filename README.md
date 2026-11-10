@@ -27,6 +27,30 @@ npx clang-tidy -p build src/main.cpp
 - **clang-tidy works out of the box.** Its platform packages include clang's builtin headers (`stddef.h`, `stdarg.h` and the others) in `lib/clang/<version>/include`, next to the binary, where clang-tidy looks for them.
 - **Traceable.** The binaries are built from the LLVM source with a GitHub build attestation for every file. The release workflow checks each file's sha512 and attestation before packing, and publishes from GitHub Actions with npm trusted publishing and provenance.
 
+## Format before every commit
+
+With [husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/lint-staged/lint-staged), git formats the C and C++ files of each commit:
+
+```sh
+npm install --save-dev @cpp-linter/clang-format@23 husky lint-staged
+npx husky init
+echo "npx lint-staged" > .husky/pre-commit
+```
+
+and in `package.json`:
+
+```json
+{
+  "lint-staged": {
+    "*.{c,h,cc,cpp,hpp}": "clang-format -i"
+  }
+}
+```
+
+lint-staged passes only the staged files to clang-format and adds the result to the commit.
+
+`git-clang-format`, LLVM's script that formats only the changed lines, comes with `@cpp-linter/clang-format` for LLVM releases whose static binaries include the helper scripts (`npx git-clang-format`, needs Python 3). The versions already on npm do not have it, because a published version cannot change.
+
 ## How it works
 
 ```
@@ -36,7 +60,7 @@ index.json of clang-tools-static-binaries
           └─ scripts/publish.mjs   npm publish, platform packages first, skip what is already on npm
 ```
 
-The [Publish](.github/workflows/publish.yml) workflow runs every day and publishes the LLVM versions that are new in `index.json`. Its publish job waits for a maintainer's approval in the `npm` environment. See [CONTRIBUTING.md](CONTRIBUTING.md) for running it locally and for the release setup.
+The [Publish](.github/workflows/publish.yml) workflow runs every day and publishes the LLVM versions that are new in `index.json`. Its publish job runs in the `npm` environment, which only `main` can use, and needs no approval. See [CONTRIBUTING.md](CONTRIBUTING.md) for running it locally and for the release setup.
 
 ## License
 

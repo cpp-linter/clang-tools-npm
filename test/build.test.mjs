@@ -143,6 +143,12 @@ test('main packs every tool for every platform', async (t) => {
   assert.ok(fs.existsSync(path.join(mainDir, 'index.js')));
   assert.ok(!fs.readFileSync(path.join(mainDir, 'README.md'), 'utf8').includes('{{'));
 
+  // this release has no helper scripts, so there is no git-clang-format
+  const formatMainDir = path.join(out, 'packages', '23.1.3', 'clang-format');
+  assert.deepEqual(readJson(path.join(formatMainDir, 'package.json')).bin, { 'clang-format': 'bin/clang-format.js' });
+  assert.ok(!fs.existsSync(path.join(formatDir, 'bin', 'git-clang-format')));
+  assert.doesNotMatch(fs.readFileSync(path.join(formatMainDir, 'README.md'), 'utf8'), /git-clang-format|\{\{/);
+
   // the license and the headers are downloaded once, not once per package
   assert.equal(fetched.filter((url) => url.endsWith('/LICENSE.TXT')).length, 1);
   assert.equal(fetched.filter((url) => url.endsWith('.tar.gz')).length, 1);
@@ -294,6 +300,64 @@ test('main fails when index.json lacks a tool or a platform', async (t) => {
   const noPlatform = structuredClone(index);
   delete noPlatform.versions[23].tools['clang-format']['macos-arm64'];
   await assert.rejects(main(workspace(t, noPlatform).args), /LLVM 23\.1\.3: no clang-format for macos-arm64\./);
+});
+
+test('main packs git-clang-format when the release has the helper scripts', async (t) => {
+  const scripts = tarGz(t, { 'bin/git-clang-format': '#!/usr/bin/env python3\n', 'bin/run-clang-tidy': '' });
+  const { index, assets } = makeRelease(t, { scripts });
+  const { out, args } = workspace(t, index);
+  const fetched = mockFetch(t, serve(assets));
+  captureLog(t);
+
+  await main(['--versions', '23', ...args]);
+
+  // the script is next to the binary, in every platform package of clang-format
+  for (const platform of PLATFORMS) {
+    const script = path.join(out, 'packages', '23.1.3', `clang-format-${platform.os}-${platform.cpu}`, 'bin', 'git-clang-format');
+    assert.equal(fs.readFileSync(script, 'utf8'), '#!/usr/bin/env python3\n');
+    assert.equal(fs.statSync(script).mode & 0o777, 0o755);
+  }
+  // and only what the tool uses is unpacked
+  const formatBin = path.join(out, 'packages', '23.1.3', 'clang-format-linux-x64', 'bin');
+  assert.deepEqual(fs.readdirSync(formatBin).sort(), ['clang-format', 'git-clang-format']);
+  const tidyBin = path.join(out, 'packages', '23.1.3', 'clang-tidy-linux-x64', 'bin');
+  assert.deepEqual(fs.readdirSync(tidyBin), ['clang-tidy']);
+
+  // the main package has a command for it
+  const mainDir = path.join(out, 'packages', '23.1.3', 'clang-format');
+  const mainPkg = readJson(path.join(mainDir, 'package.json'));
+  assert.deepEqual(mainPkg.bin, {
+    'clang-format': 'bin/clang-format.js',
+    'git-clang-format': 'bin/git-clang-format.js',
+  });
+  assert.deepEqual(mainPkg.files, [
+    'index.js',
+    'index.d.ts',
+    'bin/clang-format.js',
+    'bin/git-clang-format.js',
+    'LICENSE',
+  ]);
+  assert.equal(fs.statSync(path.join(mainDir, 'bin', 'git-clang-format.js')).mode & 0o777, 0o755);
+  const readme = fs.readFileSync(path.join(mainDir, 'README.md'), 'utf8');
+  assert.match(readme, /npx git-clang-format --diff main/);
+  assert.match(readme, /require\('@cpp-linter\/clang-format'\)\.gitClangFormat/);
+  assert.ok(!readme.includes('{{'));
+  const tidyPkg = readJson(path.join(out, 'packages', '23.1.3', 'clang-tidy', 'package.json'));
+  assert.deepEqual(tidyPkg.bin, { 'clang-tidy': 'bin/clang-tidy.js' });
+
+  assert.equal(fetched.filter((url) => url.endsWith('/clang-tools-scripts-23.tar.gz')).length, 1);
+});
+
+test('main fails when the scripts archive has no usable git-clang-format', async (t) => {
+  captureLog(t);
+  for (const [files, error] of [
+    [{ 'bin/run-clang-tidy': '' }, /tar/],
+    [{ 'bin/git-clang-format/nested': '' }, /clang-tools-scripts-23\.tar\.gz: bin\/git-clang-format is not a file\./],
+  ]) {
+    const { index, assets } = makeRelease(t, { scripts: tarGz(t, files) });
+    t.mock.method(globalThis, 'fetch', serve(assets));
+    await assert.rejects(main([...workspace(t, index).args, '--tools', 'clang-format']), error);
+  }
 });
 
 test('main checks the headers archive before unpacking it', async (t) => {

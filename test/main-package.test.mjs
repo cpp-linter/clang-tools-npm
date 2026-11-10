@@ -1,5 +1,6 @@
-// Tests for the runtime of the main package (templates/main/index.js and bin.js),
-// which users run as `clang-tidy` / `clang-format`.
+// Tests for the runtime of the main package (templates/main/index.js, bin.js and
+// git-clang-format.js), which users run as `clang-tidy` / `clang-format` /
+// `git-clang-format`.
 //
 // The templates are tested where they are, so coverage is measured on them. Their
 // requires are redirected to a fake package: `./package.json` gets a package.json
@@ -13,11 +14,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { tempDir } from './helpers.mjs';
+import { setEnv, tempDir } from './helpers.mjs';
 
 const require = createRequire(import.meta.url);
 const INDEX_JS = fileURLToPath(new URL('../templates/main/index.js', import.meta.url));
 const BIN_JS = fileURLToPath(new URL('../templates/main/bin.js', import.meta.url));
+const GIT_BIN_JS = fileURLToPath(new URL('../templates/main/git-clang-format.js', import.meta.url));
 const KEY = `${process.platform}-${process.arch}`;
 const PLATFORM_PACKAGE = `@cpp-linter/clang-tidy-${KEY}`;
 const EXE = process.platform === 'win32' ? '.exe' : '';
@@ -31,7 +33,9 @@ function loadIndex(t, { pkg, platformDir }) {
   const resolve = Module._resolveFilename;
   t.mock.method(Module, '_load', function (request, parent, ...rest) {
     if (parent?.filename === INDEX_JS && request === './package.json') return pkg;
-    if (parent?.filename === BIN_JS && request === '..') return load.call(this, INDEX_JS, parent, ...rest);
+    if ([BIN_JS, GIT_BIN_JS].includes(parent?.filename) && request === '..') {
+      return load.call(this, INDEX_JS, parent, ...rest);
+    }
     return load.call(this, request, parent, ...rest);
   });
   t.mock.method(Module, '_resolveFilename', function (request, parent, ...rest) {
@@ -150,18 +154,18 @@ test('run passes on the signal that stopped the binary', async (t) => {
   }
 });
 
-/** Runs bin.js with the given arguments and returns process.exitCode. */
-function runBin(t, args) {
+/** Runs bin.js (or another command file) with the given arguments and returns process.exitCode. */
+function runBin(t, args, file = BIN_JS) {
   const argv = process.argv;
-  process.argv = [process.execPath, BIN_JS, ...args];
-  delete require.cache[BIN_JS];
+  process.argv = [process.execPath, file, ...args];
+  delete require.cache[file];
   try {
-    require(BIN_JS);
+    require(file);
     return process.exitCode;
   } finally {
     process.argv = argv;
     process.exitCode = undefined;
-    delete require.cache[BIN_JS];
+    delete require.cache[file];
   }
 }
 
@@ -179,5 +183,74 @@ test('the command prints what is wrong and exits with 1', (t) => {
   assert.equal(runBin(t, []), 1);
   assert.deepEqual(error.mock.calls[0].arguments, [
     `@cpp-linter/clang-tidy has no clang-tidy binary for ${KEY}. Supported platforms: linux-s390x.`,
+  ]);
+});
+
+/**
+ * A fake platform package with git-clang-format next to the binary, and a PATH that
+ * has only the given fake Python commands ({ python3: 'exit 0' }), which write
+ * their arguments to the returned `out` file.
+ */
+function gitClangFormatSetup(t, pythons, mode = 0o755) {
+  const { dir, binary } = platformPackage(t, 'exit 0');
+  const script = path.join(dir, 'bin', 'git-clang-format');
+  fs.writeFileSync(script, '#!/usr/bin/env python3\n');
+  const pathDir = tempDir(t);
+  const out = path.join(pathDir, 'args');
+  for (const [name, body] of Object.entries(pythons)) {
+    fs.writeFileSync(path.join(pathDir, name), `#!/bin/sh\necho ${name} > '${out}'\nprintf '%s\\n' "$@" >> '${out}'\n${body}\n`, { mode });
+  }
+  setEnv(t, 'PATH', pathDir);
+  const index = loadIndex(t, { pkg: mainPackageJson(), platformDir: dir });
+  return { index, binary, script, out };
+}
+
+test('gitClangFormat runs the script with Python and the binary of the package', (t) => {
+  const { index, binary, script, out } = gitClangFormatSetup(t, { python3: 'exit 5', python: 'exit 6' });
+  assert.equal(index.gitClangFormat(['--diff', 'main'], { stdio: 'ignore' }), 5);
+  assert.equal(fs.readFileSync(out, 'utf8'), `python3\n${script}\n--binary\n${binary}\n--diff\nmain\n`);
+});
+
+test('gitClangFormat uses python when there is no python3', (t) => {
+  const { index, binary, script, out } = gitClangFormatSetup(t, { python: 'exit 0' });
+  assert.equal(index.gitClangFormat(), 0);
+  assert.equal(fs.readFileSync(out, 'utf8'), `python\n${script}\n--binary\n${binary}\n`);
+});
+
+test('gitClangFormat explains what is missing', (t) => {
+  const noPython = gitClangFormatSetup(t, {});
+  assert.throws(
+    () => noPython.index.gitClangFormat(),
+    new Error('git-clang-format needs Python 3, but python3 and python are not on PATH.'),
+  );
+
+  const { dir } = platformPackage(t, 'exit 0');
+  const noScript = loadIndex(t, { pkg: mainPackageJson(), platformDir: dir });
+  assert.throws(
+    () => noScript.gitClangFormat(),
+    new Error('@cpp-linter/clang-tidy 23.1.3 does not include git-clang-format.'),
+  );
+});
+
+test('gitClangFormat throws when Python cannot be started, and returns 1 when it is killed', (t) => {
+  const notExecutable = gitClangFormatSetup(t, { python3: 'exit 0' }, 0o644);
+  assert.throws(() => notExecutable.index.gitClangFormat([], { stdio: 'ignore' }), { code: 'EACCES' });
+
+  const killed = gitClangFormatSetup(t, { python3: 'kill -9 $$' });
+  assert.equal(killed.index.gitClangFormat([], { stdio: 'ignore' }), 1);
+});
+
+test('the git-clang-format command exits with the exit code of the script', (t) => {
+  const { out } = gitClangFormatSetup(t, { python3: 'exit 2' });
+  assert.equal(runBin(t, ['--staged'], GIT_BIN_JS), 2);
+  assert.match(fs.readFileSync(out, 'utf8'), /--staged\n$/);
+});
+
+test('the git-clang-format command prints what is wrong and exits with 1', (t) => {
+  gitClangFormatSetup(t, {});
+  const error = t.mock.method(console, 'error', () => {});
+  assert.equal(runBin(t, [], GIT_BIN_JS), 1);
+  assert.deepEqual(error.mock.calls[0].arguments, [
+    'git-clang-format needs Python 3, but python3 and python are not on PATH.',
   ]);
 });

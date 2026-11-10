@@ -77,4 +77,32 @@ function run(args = [], options = {}) {
   return result.status === null ? 1 : result.status;
 }
 
-module.exports = { tool, llvmVersion, supportedPlatforms, binaryPath, run };
+/**
+ * Runs git-clang-format, LLVM's script that formats only the lines changed in git,
+ * with the clang-format binary of this package, and returns its exit code.
+ * It is a Python script, so Python 3 must be on PATH.
+ */
+function gitClangFormat(args = [], options = {}) {
+  const binary = binaryPath();
+  const script = path.join(path.dirname(binary), 'git-clang-format');
+  if (!fs.existsSync(script)) {
+    throw new Error(`${pkg.name} ${llvmVersion} does not include git-clang-format.`);
+  }
+  const pythons = process.platform === 'win32' ? ['python', 'py'] : ['python3', 'python'];
+  for (const python of pythons) {
+    const result = childProcess.spawnSync(python, [script, '--binary', binary, ...args], {
+      stdio: 'inherit',
+      ...options,
+    });
+    if (result.error && result.error.code === 'ENOENT') {
+      continue;
+    }
+    if (result.error) {
+      throw result.error;
+    }
+    return result.status === null ? 1 : result.status;
+  }
+  throw new Error(`git-clang-format needs Python 3, but ${pythons.join(' and ')} are not on PATH.`);
+}
+
+module.exports = { tool, llvmVersion, supportedPlatforms, binaryPath, run, gitClangFormat };
