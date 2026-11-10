@@ -9,4 +9,3 @@ npx git-clang-format --diff main   # print the changes instead of making them
 ```
 
 From Node.js: `require('{{NAME}}').gitClangFormat(['--diff', 'main'])`.
-
