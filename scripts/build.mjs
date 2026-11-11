@@ -33,6 +33,9 @@ export const REGISTRY = 'https://registry.npmjs.org';
 export const TOOLS = {
   'clang-format': {
     headers: false,
+    // git-clang-format formats only the lines changed in git. It is a Python
+    // script that is packed when the release has the helper scripts archive.
+    scripts: ['git-clang-format'],
     description: 'clang-format, the C/C++ code formatter from LLVM, as a static binary',
     keywords: ['clang-format', 'formatter', 'format', 'c', 'cpp', 'c++', 'llvm', 'clang'],
   },
@@ -40,6 +43,7 @@ export const TOOLS = {
     // clang-tidy parses the code, so it needs clang's builtin headers (stddef.h, ...)
     // next to the binary: <bin>/../lib/clang/<version>/include.
     headers: true,
+    scripts: [],
     description: 'clang-tidy, the C/C++ linter from LLVM, as a static binary with its builtin headers',
     keywords: ['clang-tidy', 'linter', 'lint', 'static-analysis', 'c', 'cpp', 'c++', 'llvm', 'clang'],
   },
@@ -171,6 +175,17 @@ function unpackHeaders(archive, dir) {
   }
 }
 
+/** Unpacks the helper scripts `names` (bin/<name> in the archive) into dir/bin. */
+function unpackScripts(archive, names, dir) {
+  // tar fails when the archive does not have one of them
+  execFileSync('tar', ['-xzf', archive, '-C', dir, ...names.map((name) => `bin/${name}`)]);
+  for (const name of names) {
+    const file = path.join(dir, 'bin', name);
+    if (!fs.lstatSync(file).isFile()) throw new Error(`${path.basename(archive)}: bin/${name} is not a file.`);
+    fs.chmodSync(file, 0o755);
+  }
+}
+
 function writeJson(file, value) {
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -185,7 +200,7 @@ export function fillTemplate(name, values) {
   return text;
 }
 
-function makePlatformPackage({ tool, platform, version, entry, binary, headers, license, release, dir }) {
+function makePlatformPackage({ tool, platform, version, entry, binary, headers, scripts, license, release, dir }) {
   const exe = platform.os === 'win32' ? '.exe' : '';
   fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
   const dest = path.join(dir, 'bin', `${tool}${exe}`);
@@ -195,6 +210,9 @@ function makePlatformPackage({ tool, platform, version, entry, binary, headers, 
   if (headers) {
     unpackHeaders(headers, dir);
     files.push('lib');
+  }
+  if (scripts) {
+    unpackScripts(scripts, TOOLS[tool].scripts, dir);
   }
   fs.copyFileSync(license, path.join(dir, 'LICENSE.TXT'));
   const name = platformPackageName(tool, platform);
@@ -228,7 +246,7 @@ function makePlatformPackage({ tool, platform, version, entry, binary, headers, 
   return name;
 }
 
-function makeMainPackage({ tool, version, major, dir }) {
+function makeMainPackage({ tool, version, major, scripts, dir }) {
   const info = TOOLS[tool];
   const name = `${SCOPE}/${tool}`;
   fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
@@ -236,7 +254,15 @@ function makeMainPackage({ tool, version, major, dir }) {
     fs.copyFileSync(path.join(TEMPLATES, 'main', file), path.join(dir, file));
   }
   fs.copyFileSync(path.join(TEMPLATES, 'main', 'bin.js'), path.join(dir, 'bin', `${tool}.js`));
-  fs.chmodSync(path.join(dir, 'bin', `${tool}.js`), 0o755);
+  const bin = { [tool]: `bin/${tool}.js` };
+  // Each helper script gets a command that runs it with the binary of this package.
+  for (const script of scripts) {
+    fs.copyFileSync(path.join(TEMPLATES, 'main', `${script}.js`), path.join(dir, 'bin', `${script}.js`));
+    bin[script] = `bin/${script}.js`;
+  }
+  for (const file of Object.values(bin)) {
+    fs.chmodSync(path.join(dir, file), 0o755);
+  }
   fs.copyFileSync(path.join(ROOT, 'LICENSE'), path.join(dir, 'LICENSE'));
   const optionalDependencies = {};
   for (const platform of PLATFORMS) {
@@ -253,14 +279,20 @@ function makeMainPackage({ tool, version, major, dir }) {
     bugs: BUGS,
     main: 'index.js',
     types: 'index.d.ts',
-    bin: { [tool]: `bin/${tool}.js` },
-    files: ['index.js', 'index.d.ts', `bin/${tool}.js`, 'LICENSE'],
+    bin,
+    files: ['index.js', 'index.d.ts', ...Object.values(bin), 'LICENSE'],
     engines: { node: '>=18' },
     optionalDependencies,
   });
   fs.writeFileSync(
     path.join(dir, 'README.md'),
-    fillTemplate(`${tool}-README.md`, { NAME: name, TOOL: tool, VERSION: version, MAJOR: String(major) }),
+    fillTemplate(`${tool}-README.md`, {
+      NAME: name,
+      TOOL: tool,
+      VERSION: version,
+      MAJOR: String(major),
+      SCRIPTS: scripts.map((script) => fillTemplate(`${script}-README.md`, { NAME: name })).join(''),
+    }),
   );
   return name;
 }
@@ -359,6 +391,8 @@ export async function main(args = process.argv.slice(2)) {
         }
         headers = await fetchFile(entry.resource_headers);
       }
+      // Releases built before the helper scripts were published have none.
+      const scripts = info.scripts.length > 0 && entry.scripts ? await fetchFile(entry.scripts) : null;
       for (const platform of PLATFORMS) {
         const build = builds[platform.source];
         if (!build) throw new Error(`LLVM ${version}: no ${tool} for ${platform.source}.`);
@@ -371,6 +405,7 @@ export async function main(args = process.argv.slice(2)) {
           entry: build,
           binary,
           headers,
+          scripts,
           license,
           release: entry.tag,
           dir,
@@ -378,7 +413,7 @@ export async function main(args = process.argv.slice(2)) {
         packages.push({ name, tool, kind: 'platform', os: platform.os, cpu: platform.cpu, tarball: pack(dir, tarballs) });
       }
       const dir = path.join(out, 'packages', version, tool);
-      const name = makeMainPackage({ tool, version, major, dir });
+      const name = makeMainPackage({ tool, version, major, scripts: scripts ? info.scripts : [], dir });
       packages.push({ name, tool, kind: 'main', tarball: pack(dir, tarballs) });
     }
     if (packages.length === 0) continue;

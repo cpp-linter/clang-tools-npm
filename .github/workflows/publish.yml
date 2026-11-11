@@ -2,7 +2,7 @@ name: Publish
 
 # Publishes to npm every LLVM version in the static binaries' index.json that
 # is not on npm yet. Runs every day and by hand. The publish job uses the
-# "npm" environment, so it waits for a maintainer's approval.
+# "npm" environment, which only main can use.
 
 on:
   schedule:

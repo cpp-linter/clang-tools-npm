@@ -22,13 +22,13 @@ A version is skipped by `--versions all` (and makes a named version fail) when i
 
 This repository has no version of its own: the npm version of every package is the LLVM version of the binary, like the per-version releases of clang-tools-static-binaries. So it does not use Release Drafter or tags. A new LLVM version is published when it appears in `index.json`.
 
-The [Publish](.github/workflows/publish.yml) workflow runs daily and by hand (`versions`, `dry-run`). It packs every LLVM version from `index.json` that is not on npm yet, runs the smoke tests on all 6 platforms, and then the `publish` job waits in the `npm` environment for a maintainer's approval.
+The [Publish](.github/workflows/publish.yml) workflow runs daily and by hand (`versions`, `dry-run`). It packs every LLVM version from `index.json` that is not on npm yet, runs the smoke tests on all 6 platforms, and then the `publish` job publishes them from the `npm` environment, without waiting for an approval.
 
 The newest LLVM major gets the dist-tag `latest`; older majors get `llvm-<major>`, so publishing an old version never changes what `npm install @cpp-linter/clang-tidy` installs. An npm version cannot be published twice: a rebuild of the same LLVM version in clang-tools-static-binaries (a new `-N` release) is not published again.
 
 ### Trusted publishing
 
-The Publish workflow has no npm token. Every package trusts `publish.yml` in the `npm` environment ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers)), so npm swaps the job's OIDC token for a short-lived publish token and signs a provenance statement. The `npm` environment has a maintainer as required reviewer and allows only `main`.
+The Publish workflow has no npm token. Every package trusts `publish.yml` in the `npm` environment ([npm trusted publishing](https://docs.npmjs.com/trusted-publishers)), so npm swaps the job's OIDC token for a short-lived publish token and signs a provenance statement. The `npm` environment allows only `main` and has no required reviewer, so a new LLVM version is published without anyone having to approve it.
 
 A package can only trust a workflow once it exists on npm. When a new tool gets packages, publish their first version once with a 1-day granular token that bypasses 2FA (a `NPM_TOKEN` secret in the `npm` environment, passed to the Publish step as `NODE_AUTH_TOKEN` for that run, as for the first release), then set up trust from a maintainer's machine (npm 11.15 or newer, logged in with `npm login --auth-type=web`; one 2FA prompt, then choose to skip 2FA for 5 minutes):
 

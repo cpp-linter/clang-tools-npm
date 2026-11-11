@@ -45,7 +45,7 @@ export function tarGz(t, files) {
  * A release of LLVM 23 as index.json lists it, with every file it points at.
  * `assets` maps each url to its bytes, for the fake fetch.
  */
-export function makeRelease(t, { headers } = {}) {
+export function makeRelease(t, { headers, scripts } = {}) {
   const assets = new Map();
   const add = (name, data) => {
     const entry = asset(name, Buffer.from(data));
@@ -71,6 +71,8 @@ export function makeRelease(t, { headers } = {}) {
     ),
     tools,
   };
+  // only releases built after the helper scripts were added have this archive
+  if (scripts) entry.scripts = add('clang-tools-scripts-23.tar.gz', scripts);
   const index = {
     schema_version: 1,
     generated_at: '2026-10-22T00:00:00+00:00',

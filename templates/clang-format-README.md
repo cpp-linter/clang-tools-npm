@@ -13,7 +13,27 @@ npx clang-format --dry-run --Werror src/*.cpp
 
 The npm version is the LLVM version. clang-format output changes between LLVM major versions, so pin one: `{{NAME}}@{{MAJOR}}` always installs the newest LLVM {{MAJOR}} release. Older LLVM majors are under the [Versions](https://www.npmjs.com/package/{{NAME}}?activeTab=versions) tab, such as `{{NAME}}@18`.
 
-## How it is installed
+## Before every commit
+
+With [husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/lint-staged/lint-staged), git formats the C and C++ files of each commit:
+
+```sh
+npm install --save-dev {{NAME}}@{{MAJOR}} husky lint-staged
+npx husky init
+echo "npx lint-staged" > .husky/pre-commit
+```
+
+and in `package.json`:
+
+```json
+{
+  "lint-staged": {
+    "*.{c,h,cc,cpp,hpp}": "clang-format -i"
+  }
+}
+```
+
+{{SCRIPTS}}## How it is installed
 
 This package has one optional dependency per platform, such as `{{NAME}}-linux-x64`, and npm installs only the one for your machine. Nothing is downloaded or run at install time, so it works with `--ignore-scripts`, pnpm, Yarn, offline caches and private registry mirrors.
 

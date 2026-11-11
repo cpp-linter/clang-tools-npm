@@ -128,6 +128,17 @@ if (tools.includes('clang-format')) {
   );
 }
 
+// Only in releases whose static binaries came with the helper scripts.
+const gitClangFormat = path.join(work, 'node_modules', '@cpp-linter', 'clang-format', 'bin', 'git-clang-format.js');
+if (fs.existsSync(gitClangFormat)) {
+  const result = exec('git-clang-format', ['-h']);
+  check(
+    'git-clang-format runs with Python',
+    result.status === 0 && output(result).includes('usage'),
+    `exit ${result.status}:\n${output(result)}`,
+  );
+}
+
 if (tools.includes('clang-tidy')) {
   const tidy = (name, source, flags) => {
     fs.writeFileSync(path.join(work, `${name}.cpp`), source);
